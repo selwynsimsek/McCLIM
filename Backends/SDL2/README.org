@@ -197,3 +197,82 @@
   When the port is run on a single-threaded host then the loop above is not
   started by the port, instead it is the user (i.e clim event queue) calls
   ~process-next-event~ when it waits for input.
+
+* Managing windows
+
+  In CLIM a mirrored sheet represent a host windows. The mirror is an actual
+  handle to the window. There are three mixins for mirrored sheets:
+
+  - mirrored-sheet-mixin  :: the sheet is mirrored on the display host
+  - top-level-sheet-mixin :: the sheet is a top-level window
+  - unmanaged-sheet-mixin :: the sheet is not managed by a window manager
+
+  They may be used in various combinations depending on needs. For example a
+  top level sheet without a mirror /could/ be realized on a special type of
+  graft that is also a mirrored sheet that may drawn on. The port is only
+  concerned with mirrored sheets (and the rest is handled by the core).
+
+  The mirror managament protocol is composed of the following functions:
+
+  - realize-mirror :: the constructor
+  - destroy-mirror :: the destructor
+  - port-set-mirror-name :: set the window title
+  - port-set-mirror-icon :: set the window icon
+  - port-set-mirror-geometry :: set the mirror shape - handling mirrors with a
+    shape other than a rectangle is optional and it is permissible to use the
+    bounding rectangle of the region
+  - raise-mirror, bury-mirror :: manipulates the z-order of the window stack
+  - port-enable-sheet, port-disable-sheet :: map and unmap the sheet - this is
+    different than realize and destroy because the same window may be mapped
+    again after disabling it
+  - port-shrink-sheet, port-unshrink-sheet :: iconfiy/deiconfiy the window
+
+  For details of the implementation see the file ~mirror.lisp~. A general rule
+  is for the clim method to trampline to a request that maps directly to SDL2
+  ffi calls. It is a responsibility of the request to signal an error.
+
+  For example:
+
+  #+begin_src lisp
+    (defmethod port-set-mirror-geometry (port sheet region)
+      (with-bounding-rectangle* (x y :width w :height h) region
+        (change-window-size (sheet-direct-mirror sheet) x y w h)))
+
+    (define-sdl2-request change-window-size (window x y w h)
+      (sdl2-ffi.functions:sdl-set-window-position window x y)
+      (sdl2-ffi.functions:sdl-set-window-size window w h))
+  #+end_src
+
+  Functions ~realize-mirror~, ~destroy-mirror~, ~port-set-mirror-geometry~
+  ~port-enable-sheet~ and ~port-disable-sheet~ are the indespensible minimum
+  for CLIM to work. Other functions still must have stub methods.
+
+  Finally here is an outline of handling window events. The appropriate
+  handler trampolines to a generic function ~hndle-sdl2-window-event~ that is
+  specialized on the window event type key.
+
+  #+begin_src lisp
+    ;;; Window SDL2 event handlers.
+
+    (define-sdl2-handler (ev :windowevent) (event window-id timestamp data1 data2)
+      (alx:when-let ((sheet (get-mirror-sheet *sdl2-port* window-id)))
+        (let ((event-key (autowrap:enum-key '(:enum (windowevent.event)) event)))
+          (handle-sdl2-window-event event-key sheet timestamp data1 data2))))
+
+    (defgeneric handle-sdl2-window-event (event-key sheet timestamp data1 data2)
+      (:method (event-key sheet timestamp data1 data2)
+        (log:debug "Unhandled window event ~s." event-key)))
+
+    (defmethod handle-sdl2-window-event ((key (eql :close)) sheet stamp d1 d2)
+      (log:info "Destroying a window.")
+      (make-instance 'window-manager-delete-event :sheet sheet :timestamp stamp))
+
+    (defmethod handle-sdl2-window-event ((key (eql :exposed)) sheet stamp d1 d2)
+      (log:info "Repainting a window.")
+      ;; The call to GET-WINDOW-SURFACE is for side the effect, namely to ensure
+      ;; that the surface is allocated (to be able to call UPDATE-WINDOW).
+      (let ((window (sdl2-window (sheet-mirror sheet))))
+        (sdl2:get-window-surface window)
+        (sdl2:update-window window)))
+  #+end_src
+

@@ -7,4 +7,5 @@
   :serial t
   :components ((:file "packages")
                (:file "utilities")
-               (:file "port")))
+               (:file "port")
+               (:file "mirror")))
