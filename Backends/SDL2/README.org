@@ -247,6 +247,41 @@
   ~port-enable-sheet~ and ~port-disable-sheet~ are the indespensible minimum
   for CLIM to work. Other functions still must have stub methods.
 
+  The function ~realize-mirror~ the window based on the sheet properties. The
+  created sheet has certain dimensions specified by its region - the mirror is
+  expected to show it all. The native region and the native transformation are
+  responsible for mapping the window "native coordinates" to the sheet region.
+  For example when a sheet region is ~[-100, -100, 100, 100]~, then the native
+  region would be ~[0, 0, 200, 200]~ and the native transformation would be a
+  translation ~[100, 100]~. For example the sheet coordinate ~(0, 0)~ is
+  translated with a native translation to a native coordinate ~(100, 100)~.
+
+  #+begin_src lisp
+    (defmethod realize-mirror ((port sdl2-port) (sheet top-level-sheet-mixin))
+      (with-bounding-rectangle* (x y :width w :height h) sheet
+        (log:info "Creating a new window [~s ~s :w ~s :h ~s]" x y w h)
+        (let* ((title (sheet-pretty-name sheet))
+               (flags '(:shown :resizable))
+               (id (create-window title :centered :centered w h flags :synchronize t))
+               (mirror (make-instance 'sdl2-mirror :id id :sheet sheet))
+               (native-region (make-rectangle* 0 0 w h))
+               (native-transformation (make-translation-transformation (- x) (- y))))
+          (alx:when-let ((icon (sheet-icon sheet)))
+            (change-window-icon id (alx:ensure-car icon)))
+          (setf (climi::%sheet-native-region sheet) native-region
+                (climi::%sheet-native-transformation sheet) native-transformation
+                (id->mirror port id) mirror))))
+  #+end_src  
+
+  # FIXME we should implement handling of the ~window-configuration-event~ by
+  # the ~top-level-sheet-mixin~, not a pane(!).
+  # 
+  # FIXME ~window-configuration-event~ is badly handled
+
+  McCLIM core will update the sheet native region and the sheet native
+  transformation when the ~window-configuration-event~ is handled by the
+  ~top-level-sheet-pane~ and when ~move-and-resize-sheet~ is called.
+
   Finally here is an outline of handling window events. The appropriate
   handler trampolines to a generic function ~hndle-sdl2-window-event~ that is
   specialized on the window event type key.

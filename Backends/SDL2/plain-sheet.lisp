@@ -67,7 +67,7 @@
   ()
   (:default-initargs :icon *glider*
                      :pretty-name "McCLIM Test Sheet"
-                     :region (make-rectangle* 1000 100 1400 500)))
+                     :region (make-rectangle* -200 -200 200 200)))
 
 (defmethod handle-event ((sheet plain-sheet) event)
   (log:info "Unhandled event ~s has arrived." (class-name (class-of event))))
@@ -100,27 +100,20 @@
 
 (defparameter *xxx* (open-plain-sheet :sdl2))
 
-(defun %do-it (x1 y1 x2 y2)
+(defun %do-it ()
   (let ((medium *xxx*))
-    (medium-clear-area medium 0 0 800 600)
-    (draw-rectangle* medium x1 y1 x2 y2 :ink +light-cyan+)
-    (draw-line* medium x1 y1 x2 y2
-                :ink (alx:random-elt (list +dark-blue+
-                                           +dark-green+
-                                           +deep-pink+))
-                :line-thickness 4)
-    (draw-circle* medium
-                  (* .5 (+ x1 x2))
-                  (* .5 (+ y1 y2))
-                  25 :ink +dark-red+)
+    (medium-clear-area medium -200 -200 200 200)
+    (draw-rectangle* medium -175 -175 175 175 :ink +light-green+)
+    (draw-circle* medium 0 0 25 :ink (alexandria:random-elt
+                                      (make-contrasting-inks 8)))
+    ;(draw-text* medium "(0,0)" 0 0)
     (medium-finish-output *xxx*)))
 
-
-(define-sdl2-request do-it (x1 y1 x2 y2)
-  (%do-it x1 y1 x2 y2))
+(define-sdl2-request do-it ()
+  (%do-it))
 
 ;#+ ()
-(let ((result (do-it 50 50 300 300 :synchronize t)))
+(let ((result (do-it :synchronize t)))
   (if (typep result 'condition)
       (error result)
       'done))

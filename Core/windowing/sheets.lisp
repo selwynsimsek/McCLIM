@@ -736,6 +736,13 @@ this might be different from the sheet's native region and transformation.")))
 (defmethod shrink-sheet ((sheet top-level-sheet-mixin))
   (port-shrink-sheet (port sheet) sheet))
 
+(defmethod handle-event ((sheet top-level-sheet-mixin)
+                         (event window-configuration-event))
+  (let ((width (window-configuration-event-width event))
+        (height (window-configuration-event-height event))
+        (*configuration-event-p* sheet))
+    (resize-sheet sheet width height)))
+
 ;;; Unmanaged sheet is not managed by the window manager.
 (defclass unmanaged-sheet-mixin () ())
 

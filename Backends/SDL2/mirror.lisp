@@ -15,21 +15,32 @@
   (setf (mcclim-render:image-mirror-image mirror)
         (mcclim-render::%create-mirror-image mirror 1024 1024)))
 
-(defmethod realize-mirror ((port sdl2-port) (sheet unmanaged-sheet-mixin))
-  (with-bounding-rectangle* (x y :width w :height h) sheet
-    (let* ((id (create-window "(McCLIM)" x y w h '(:borderless) :synchronize t))
-           (mirror (make-instance 'sdl2-mirror :id id :sheet sheet)))
-      (setf (id->mirror port id) mirror))))
-
 (defmethod realize-mirror ((port sdl2-port) (sheet top-level-sheet-mixin))
   (with-bounding-rectangle* (x y :width w :height h) sheet
     (log:info "Creating a new window [~s ~s :w ~s :h ~s]" x y w h)
     (let* ((title (sheet-pretty-name sheet))
-           (id (create-window title x y w h '(:shown :resizable) :synchronize t))
-           (mirror (make-instance 'sdl2-mirror :id id :sheet sheet)))
+           (flags '(:shown :resizable))
+           (id (create-window title :centered :centered w h flags :synchronize t))
+           (mirror (make-instance 'sdl2-mirror :id id :sheet sheet))
+           (native-region (make-rectangle* 0 0 w h))
+           (native-transformation (make-translation-transformation (- x) (- y))))
       (alx:when-let ((icon (sheet-icon sheet)))
         (change-window-icon id (alx:ensure-car icon)))
-      (setf (id->mirror port id) mirror))))
+      (setf (climi::%sheet-native-region sheet) native-region
+            (climi::%sheet-native-transformation sheet) native-transformation
+            (id->mirror port id) mirror))))
+
+(defmethod realize-mirror ((port sdl2-port) (sheet unmanaged-sheet-mixin))
+  (with-bounding-rectangle* (x y :width w :height h) sheet
+    (let* ((title "(McCLIM)")
+           (flags '(:borderless))
+           (id (create-window title :centered :centered w h flags :synchronize t))
+           (mirror (make-instance 'sdl2-mirror :id id :sheet sheet))
+           (native-region (make-rectangle* 0 0 w h))
+           (native-transformation (make-translation-transformation (- x) (- y))))
+      (setf (climi::%sheet-native-region sheet) native-region
+            (climi::%sheet-native-transformation sheet) native-transformation
+            (id->mirror port id) mirror))))
 
 #+ (or) ;; SDL2 port does not implement mirrored sub-windows.
 (defmethod realize-mirror ((port sdl2-port) (sheet mirrored-sheet-mixin))
@@ -41,7 +52,8 @@
     (destroy-window window-id)
     (setf (id->mirror port window-id) nil)))
 
-(defmethod port-set-mirror-geometry (port (sheet mirrored-sheet-mixin) region)
+(defmethod port-set-mirror-geometry
+    ((port sdl2-port) (sheet mirrored-sheet-mixin) region)
   (with-bounding-rectangle* (x1 y1 x2 y2 :width w :height h) region
     (change-window-size (sheet-direct-mirror sheet) x1 y1 w h)
     (values x1 y1 x2 y2)))
