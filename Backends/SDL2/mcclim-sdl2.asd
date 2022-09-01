@@ -8,4 +8,5 @@
   :components ((:file "packages")
                (:file "utilities")
                (:file "port")
-               (:file "mirror")))
+               (:file "mirror")
+               (:file "medium-soft-render")))

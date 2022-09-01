@@ -236,7 +236,7 @@
   #+begin_src lisp
     (defmethod port-set-mirror-geometry (port sheet region)
       (with-bounding-rectangle* (x y :width w :height h) region
-        (change-window-size (sheet-direct-mirror sheet) x y w h)))
+        (change-window-size (window-id (sheet-direct-mirror sheet)) x y w h)))
 
     (define-sdl2-request change-window-size (window x y w h)
       (sdl2-ffi.functions:sdl-set-window-position window x y)
@@ -255,7 +255,7 @@
     ;;; Window SDL2 event handlers.
 
     (define-sdl2-handler (ev :windowevent) (event window-id timestamp data1 data2)
-      (alx:when-let ((sheet (get-mirror-sheet *sdl2-port* window-id)))
+      (alx:when-let ((sheet (mirror-sheet (id->mirror *sdl2-port* window-id)))
         (let ((event-key (autowrap:enum-key '(:enum (windowevent.event)) event)))
           (handle-sdl2-window-event event-key sheet timestamp data1 data2))))
 
@@ -271,8 +271,140 @@
       (log:info "Repainting a window.")
       ;; The call to GET-WINDOW-SURFACE is for side the effect, namely to ensure
       ;; that the surface is allocated (to be able to call UPDATE-WINDOW).
+      (let ((window (sdl2-window (window-id (sheet-mirror sheet)))))
+        (sdl2:get-window-surface window)
+        (sdl2:update-window window)))
+  #+end_src
+
+* Defining ~plain-sheet~
+
+  To test whether this functionality works, it is necessary to supply a sheet
+  to ~realize-mirror~. It is a good occasion to discuss a difference between
+  sheets and panes.
+
+  - sheet :: a window that has a region geometry and a coordinate system; it
+    implements protocols for parent-child relationship, input, output and
+    repaint.
+
+  - pane :: a sheet tailored for building an application frame. It is a higher
+    level abstraction and ports should be ignorant of pane's protocols[fn:1].
+
+  For example "raw" sheets have only default no-op methods on functions
+  ~handle-event~ and ~handle-repaint~, while panes have useful methods
+  implementing the behavior expected from application frames. The file
+  ~plain-sheet~ contains such raw sheet for testing:
+
+  #+begin_src lisp
+    (defvar *glider*
+      (make-pattern-from-bitmap-file
+       (asdf:component-pathname
+        (asdf:find-component "clim-examples" '("images" "glider.png")))))
+
+    (defclass plain-sheet (;; repainting
+                           immediate-repainting-mixin
+                           ;; input
+                           immediate-sheet-input-mixin
+                           ;; output
+                           sheet-mute-output-mixin
+                           ;; geometry
+                           sheet-identity-transformation-mixin
+                           ;; genealogy
+                           sheet-parent-mixin
+                           sheet-leaf-mixin
+                           ;; windowing
+                           top-level-sheet-mixin
+                           mirrored-sheet-mixin
+                           ;; the base class
+                           basic-sheet)
+      ()
+      (:default-initargs :icon *glider*
+                         :pretty-name "McCLIM Test Sheet"
+                         :region (make-rectangle* 1000 100 1400 500)))
+  #+end_src
+
+  Soon we'll define more useful input handlers, but for the time being let's
+  make stubs:
+
+  #+begin_src lisp
+    (defgeneric handle-sdl2-window-event (event-key sheet timestamp data1 data2)
+      (:method (event-key sheet timestamp data1 data2)
+        (log:debug "Unhandled window event ~s." event-key)))
+
+    (define-sdl2-handler (ev :windowevent) (event window-id timestamp data1 data2)
+      (alx:when-let ((sheet (get-mirror-sheet *sdl2-port* window-id)))
+        (let ((event-key (autowrap:enum-key '(:enum (windowevent.event)) event)))
+          (handle-sdl2-window-event event-key sheet timestamp data1 data2))))
+
+    (defmethod handle-sdl2-window-event ((key (eql :close)) sheet stamp d1 d2)
+      (log:info "Destroying a window.")
+      (destroy-mirror (port sheet) sheet))
+
+    ;;; Between pressing quit and the actual close the user may still use the
+    ;;; window for a brief period, so i.e a window event may sneak in. The window
+    ;;; event handler should ignore events to windows that are already destroyed.
+    (defmethod handle-sdl2-window-event ((key (eql :exposed)) sheet stamp d1 d2)
+      (log:info "Repainting a window.")
+      ;; The call to GET-WINDOW-SURFACE is for side the effect, namely to ensure
+      ;; that the surface is allocated (to be able to call UPDATE-WINDOW).
       (let ((window (sdl2-window (sheet-mirror sheet))))
         (sdl2:get-window-surface window)
         (sdl2:update-window window)))
   #+end_src
 
+  Now we may fiddle with this sheet:
+
+  #+begin_src lisp
+    (defun open-plain-sheet (path)
+      (let* ((port (find-port :server-path path))
+             ;; Necessity to supply :PORT here is a kludge in the core.
+             (sheet (make-instance 'plain-sheet :port port))
+             (graft (find-graft :port port)))
+        (sheet-adopt-child graft sheet)
+        sheet))
+
+    (defun close-plain-sheet (sheet)
+      (sheet-disown-child (graft sheet) sheet))
+  #+end_src
+
+  #+begin_example
+    > (defparameter *sheet* (open-plain-sheet :sdl2))
+    > (setf (sheet-pretty-name *sheet*) "McCLIM Production Sheet")
+    > (close-plain-sheet *sheet*)
+  #+end_example
+
+* Handling output - the "New Jersey style"
+
+  Creating the window is like having a baby - it is only the beginning. After
+  the window is created, it will receive the event signaling that it has been
+  exposed and available for drawing. Currently we only update the window.
+
+  In the tutorial about writing the SVG backend I've mentioned, that it is
+  enough to implement ~medium-draw-polygon*~ to have all drawing covered,
+  although the result is very inefficient so it is good only for prototypes.
+
+  The initial renderer for the SDL2 backend will also be an inefficient
+  prototype, but the approach will be different. Instead of implementing a
+  single function we will utilize the software renderer bundled with McCLIM,
+  and then copy the pattern array to the window surface.
+
+* Handling input
+
+  Creating the window is like having a baby - it is only the beginning. After
+  the window is created, it will receive the event signaling that it has been
+  exposed and that it is available for drawing. When the window is closed,
+  then an appropriate event will come soon afterwards. And so on. Some events
+  are handled directly by the backend, while other events are distributed to a
+  target sheet.
+
+  When the function returns a clim event, then the event is distributed to the
+  sheet. For that reason we need to maintain a back-pointer from the window id
+  to the associated mirrored sheet. This association may be stored in a port.
+
+  Often the event handler doesn't (or can't) accepts the port argument; that's
+  where special variables shine the brightest. ~process-next-event~ binds
+  ~*sdl2-port*~ to the current port for ~handle-sdl2-event~ methods.
+
+* Footnotes
+
+[fn:1] A backend may define the frame manager that is meant to work with
+higher level abstractions in CLIM (like panes and frames).

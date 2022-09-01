@@ -1,31 +1,38 @@
 (in-package #:mcclim-sdl2)
 
+(defclass sdl2-mirror (mcclim-render::image-mirror-mixin)
+  ((window-id :initarg :id :reader window-id)
+   (mirror-sheet :initarg :sheet :accessor mirror-sheet)))
+
+(defmethod initialize-instance :after ((mirror sdl2-mirror) &rest initargs)
+  (declare (ignore initargs))
+  (setf (mcclim-render:image-mirror-image mirror)
+        (mcclim-render::%create-mirror-image mirror 1024 1024)))
+
 (defmethod realize-mirror ((port sdl2-port) (sheet unmanaged-sheet-mixin))
   (with-bounding-rectangle* (x y :width w :height h) sheet
-    (create-window "(McCLIM)" x y w h '(:borderless) :synchronize t)))
+    (let* ((id (create-window "(McCLIM)" x y w h '(:borderless) :synchronize t))
+           (mirror (make-instance 'sdl2-mirror :id id :sheet sheet)))
+      (setf (id->mirror port id) mirror))))
 
 (defmethod realize-mirror ((port sdl2-port) (sheet top-level-sheet-mixin))
   (with-bounding-rectangle* (x y :width w :height h) sheet
     (let* ((title (sheet-pretty-name sheet))
-           (window-id (create-window title x y w h '(:shown :resizable)
-                                     :synchronize t)))
+           (id (create-window title x y w h '(:shown :resizable) :synchronize t))
+           (mirror (make-instance 'sdl2-mirror :id id :sheet sheet)))
       (alx:when-let ((icon (sheet-icon sheet)))
-        (change-window-icon window-id (alx:ensure-car icon)))
-      (set-mirror-sheet port window-id sheet)
-      window-id)))
+        (change-window-icon id (alx:ensure-car icon)))
+      (setf (id->mirror port id) mirror))))
 
 #+ (or) ;; SDL2 port does not implement mirrored sub-windows.
 (defmethod realize-mirror ((port sdl2-port) (sheet mirrored-sheet-mixin))
-  (with-bounding-rectangle* (x y :width w :height h) sheet
-    (let ((window-id (create-window "McCLIM" x y w h '(:shown :resizable)
-                                    :synchronize t)))
-      (set-mirror-sheet port window-id sheet)
-      window-id)))
+  (error "fueh"))
 
 (defmethod destroy-mirror ((port sdl2-port) (sheet mirrored-sheet-mixin))
-  (let ((window-id (sheet-direct-mirror sheet)))
+  (let* ((mirror (sheet-direct-mirror sheet))
+         (window-id (window-id mirror)))
     (destroy-window window-id)
-    (set-mirror-sheet port window-id nil)))
+    (setf (id->mirror port window-id) nil)))
 
 (defmethod port-set-mirror-geometry (port (sheet mirrored-sheet-mixin) region)
   (with-bounding-rectangle* (x1 y1 x2 y2 :width w :height h) region
@@ -130,7 +137,9 @@
 ;;; Window SDL2 event handlers.
 
 (define-sdl2-handler (ev :windowevent) (event window-id timestamp data1 data2)
-  (alx:when-let ((sheet (get-mirror-sheet *sdl2-port* window-id)))
+  ;; There is a brief period after creating the window when there is no mapping.
+  (alx:when-let* ((mirror (id->mirror *sdl2-port* window-id))
+                  (sheet (mirror-sheet mirror)))
     (let ((event-key (autowrap:enum-key '(:enum (windowevent.event)) event)))
       (handle-sdl2-window-event event-key sheet timestamp data1 data2))))
 
@@ -149,6 +158,6 @@
   (log:info "Repainting a window.")
   ;; The call to GET-WINDOW-SURFACE is for side the effect, namely to ensure
   ;; that the surface is allocated (to be able to call UPDATE-WINDOW).
-  (let ((window (sdl2-window (sheet-mirror sheet))))
+  (let ((window (sdl2-window (window-id (sheet-mirror sheet)))))
     (sdl2:get-window-surface window)
     (sdl2:update-window window)))

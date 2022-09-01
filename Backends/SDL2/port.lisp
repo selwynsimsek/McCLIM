@@ -5,14 +5,14 @@
 ;;; clim-agnostic handlers.
 (defvar *sdl2-port*)
 
-(defun get-mirror-sheet (port window-id)
-  (gethash window-id (slot-value port 'mirror->sheet)))
+(defun id->mirror (port window-id)
+  (gethash window-id (slot-value port 'id->mirror)))
 
-(defun set-mirror-sheet (port window-id sheet)
-  (let ((table (slot-value port 'mirror->sheet)))
-    (if (null sheet)
+(defun (setf id->mirror) (new-mirror port window-id)
+  (let ((table (slot-value port 'id->mirror)))
+    (if (null new-mirror)
         (remhash window-id table)
-        (setf (gethash window-id table) sheet))))
+        (setf (gethash window-id table) new-mirror))))
 
 ;;; SDL2 is always expected to run in a single thread. Moreover the same
 ;;; application may have only a single sdl context. Ergo SDL2 thread is a
@@ -31,7 +31,7 @@
     :allocation :class
     :initform '()
     :accessor sdl2-clients)
-   (mirror->sheet
+   (id->mirror
     :allocation :class
     :initform (make-hash-table))))
 
