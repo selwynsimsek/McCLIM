@@ -98,7 +98,7 @@
 (defun close-plain-sheet (sheet)
   (sheet-disown-child (graft sheet) sheet))
 
-(defparameter *xxx* (open-plain-sheet :sdl2 t))
+(defparameter *xxx* (open-plain-sheet :sdl2))
 
 (defun %do-it (x1 y1 x2 y2)
   (let ((medium *xxx*))

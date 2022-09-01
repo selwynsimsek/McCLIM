@@ -1,5 +1,11 @@
 (in-package #:mcclim-sdl2)
 
+;;; FIXME the mirror should not depend on the used render (hence, not subclass
+;;; image-mirror-mixin) - the reason for that is that we want to be able to plug
+;;; an arbitrary renderer that is capable of working with SDL2 (i.e opengl).
+;;;
+;;; Ideally the only difference would be creating a different medium class. For
+;;; now let's ignore this concern and carry on.
 (defclass sdl2-mirror (mcclim-render::image-mirror-mixin)
   ((window-id :initarg :id :reader window-id)
    (mirror-sheet :initarg :sheet :accessor mirror-sheet)))
@@ -17,6 +23,7 @@
 
 (defmethod realize-mirror ((port sdl2-port) (sheet top-level-sheet-mixin))
   (with-bounding-rectangle* (x y :width w :height h) sheet
+    (log:info "Creating a new window [~s ~s :w ~s :h ~s]" x y w h)
     (let* ((title (sheet-pretty-name sheet))
            (id (create-window title x y w h '(:shown :resizable) :synchronize t))
            (mirror (make-instance 'sdl2-mirror :id id :sheet sheet)))
