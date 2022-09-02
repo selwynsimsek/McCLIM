@@ -181,10 +181,11 @@
 ;;; window for a brief period, so i.e a window event may sneak in. The window
 ;;; event handler should ignore events to windows that are already destroyed.
 (defmethod handle-sdl2-window-event ((key (eql :exposed)) sheet stamp d1 d2)
-  (log:info "Repainting a window.")
+  (log:info "Exposing a window.")
   ;; The call to SDL-GET-WINDOW-SURFACE is for side the effect, namely to ensure
   ;; that the surface is allocated (to be able to call UPDATE-WINDOW).
   (let ((window (sdl2-window (window-id (sheet-mirror sheet)))))
     ;; FIXME check returned values for errors.
     (sdl2-ffi.functions:sdl-get-window-surface window)
-    (sdl2-ffi.functions:sdl-update-window-surface window)))
+    ;(sdl2-ffi.functions:sdl-update-window-surface window)
+    ))

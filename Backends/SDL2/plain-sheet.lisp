@@ -74,6 +74,15 @@
 
 (defmethod handle-event ((sheet plain-sheet) (event window-configuration-event))
   ;; ?? race conditions - black marks on continuous resize
+  #+ ()
+  (resize-sheet sheet
+                (climi::window-configuration-event-width event)
+                (climi::window-configuration-event-height event))
+  ;; #+ ()
+  (update-surface (sheet-mirror sheet)
+                  (mcclim-render:image-mirror-image (sheet-mirror sheet))
+                  +everywhere+)
+  #+ ()
   (repaint-sheet sheet +everywhere+)
   #+ ()
   (log:info "Unhandled event ~s has arrived." (class-name (class-of event))))
@@ -85,8 +94,7 @@
   (handle-repaint sheet (window-event-region event)))
 
 (defmethod handle-repaint ((sheet plain-sheet) region)
-  (declare (ignore region))
-  (log:warn "repainting ~s" region)
+  (log:warn "Repainting a window (region ~s)." region)
   (%do-it))
 
 (defun open-plain-sheet (path &optional restartp)
@@ -97,10 +105,6 @@
           (sheet (make-instance 'plain-sheet :port port))
           (graft (find-graft :port port)))
       (sheet-adopt-child graft sheet)
-      (setf (climi::%sheet-native-region sheet)
-            (make-rectangle* 0 0 400 400)
-                                        ;(sheet-region sheet)
-            )
       sheet)))
 
 (defun close-plain-sheet (sheet)
@@ -110,12 +114,15 @@
 
 (defun %do-it ()
   (let ((medium *xxx*))
-    (medium-clear-area medium -200 -200 200 200)
-    (draw-rectangle* medium -175 -175 175 175 :ink +deep-sky-blue+)
-    (draw-circle* medium 0 0 25 :ink (alexandria:random-elt
-                                      (make-contrasting-inks 8)))
-    ;(draw-text* medium "(0,0)" 0 0)
-    (medium-finish-output *xxx*)))
+    (with-bounding-rectangle* (x1 y1 x2 y2) medium
+      (medium-clear-area medium x1 y1 x2 y2)
+      (draw-rectangle* medium (+ x1 10) (+ y1 10) (- x2 10) (- y2 10)
+                       :ink +deep-sky-blue+)
+      (draw-circle* medium 0 0 25 :ink (alexandria:random-elt
+                                        (make-contrasting-inks 8)))
+                                        ;(draw-text* medium "(0,0)" 0 0)
+      ;(sleep 1)
+      (medium-finish-output *xxx*))))
 
 (define-sdl2-request do-it ()
   (%do-it))
