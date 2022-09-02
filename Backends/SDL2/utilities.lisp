@@ -58,8 +58,8 @@
   sdl2-ffi:+sdl-windowevent-hidden+
   sdl2-ffi:+sdl-windowevent-exposed+
   sdl2-ffi:+sdl-windowevent-moved+
-  sdl2-ffi:+sdl-windowevent-resized+
-  sdl2-ffi:+sdl-windowevent-size-changed+
+  sdl2-ffi:+sdl-windowevent-resized+      ; always preceded by size-changed
+  sdl2-ffi:+sdl-windowevent-size-changed+ ; use this event to handle all resizes
   sdl2-ffi:+sdl-windowevent-minimized+
   sdl2-ffi:+sdl-windowevent-maximized+
   sdl2-ffi:+sdl-windowevent-restored+

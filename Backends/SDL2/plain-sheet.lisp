@@ -72,14 +72,22 @@
 (defmethod handle-event ((sheet plain-sheet) event)
   (log:info "Unhandled event ~s has arrived." (class-name (class-of event))))
 
+(defmethod handle-event ((sheet plain-sheet) (event window-configuration-event))
+  ;; ?? race conditions - black marks on continuous resize
+  (repaint-sheet sheet +everywhere+)
+  #+ ()
+  (log:info "Unhandled event ~s has arrived." (class-name (class-of event))))
+
 (defmethod handle-event ((sheet plain-sheet) (event window-manager-delete-event))
   (destroy-mirror (port sheet) sheet))
 
 (defmethod handle-event ((sheet plain-sheet) (event window-repaint-event))
-  (handle-repaint (event-sheet sheet) (window-event-region event)))
+  (handle-repaint sheet (window-event-region event)))
 
 (defmethod handle-repaint ((sheet plain-sheet) region)
-  (declare (ignore region)))
+  (declare (ignore region))
+  (log:warn "repainting ~s" region)
+  (%do-it))
 
 (defun open-plain-sheet (path &optional restartp)
   (let ((port (find-port :server-path path)))
@@ -103,7 +111,7 @@
 (defun %do-it ()
   (let ((medium *xxx*))
     (medium-clear-area medium -200 -200 200 200)
-    (draw-rectangle* medium -175 -175 175 175 :ink +light-green+)
+    (draw-rectangle* medium -175 -175 175 175 :ink +deep-sky-blue+)
     (draw-circle* medium 0 0 25 :ink (alexandria:random-elt
                                       (make-contrasting-inks 8)))
     ;(draw-text* medium "(0,0)" 0 0)
