@@ -74,15 +74,15 @@
 
 (defmethod handle-event ((sheet plain-sheet) (event window-configuration-event))
   ;; ?? race conditions - black marks on continuous resize
-  #+ ()
+  ;; #+ ()
   (resize-sheet sheet
                 (climi::window-configuration-event-width event)
                 (climi::window-configuration-event-height event))
-  ;; #+ ()
+  #+ ()
   (update-surface (sheet-mirror sheet)
                   (mcclim-render:image-mirror-image (sheet-mirror sheet))
                   +everywhere+)
-  #+ ()
+  ;; #+ ()
   (repaint-sheet sheet +everywhere+)
   #+ ()
   (log:info "Unhandled event ~s has arrived." (class-name (class-of event))))

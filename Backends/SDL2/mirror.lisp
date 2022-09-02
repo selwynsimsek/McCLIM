@@ -187,5 +187,4 @@
   (let ((window (sdl2-window (window-id (sheet-mirror sheet)))))
     ;; FIXME check returned values for errors.
     (sdl2-ffi.functions:sdl-get-window-surface window)
-    ;(sdl2-ffi.functions:sdl-update-window-surface window)
-    ))
+    (sdl2-ffi.functions:sdl-update-window-surface window)))
