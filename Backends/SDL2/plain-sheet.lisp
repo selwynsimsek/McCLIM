@@ -75,6 +75,13 @@
 (defmethod handle-event ((sheet plain-sheet) (event window-configuration-event))
   ;; ?? race conditions - black marks on continuous resize
   ;; #+ ()
+
+  ;; FIXME resize-sheet may call port-set-window-geometry and then we will
+  ;; receive this event back again. currently core's handler uses a flag
+  ;; *configuration-event-p* to inhibit this behavior, but we need to come up
+  ;; with something better. perhaps we should handle differently size-changed
+  ;; and resize from sdl events.
+  
   (resize-sheet sheet
                 (climi::window-configuration-event-width event)
                 (climi::window-configuration-event-height event))
@@ -110,7 +117,7 @@
 (defun close-plain-sheet (sheet)
   (sheet-disown-child (graft sheet) sheet))
 
-(defparameter *xxx* (open-plain-sheet :sdl2))
+(defparameter *xxx* (open-plain-sheet :sdl2 t))
 
 (defun %do-it ()
   (let ((medium *xxx*))

@@ -113,7 +113,10 @@
           (values nil :timeout)))))
 
 (defun sdl2-window (window-id)
-  (let ((window (sdl2-ffi.functions:sdl-get-window-from-id window-id)))
+  (let ((window (sdl2-ffi.functions:sdl-get-window-from-id
+                 (if (typep window-id 'sdl2-mirror)
+                     (window-id window-id)
+                     window-id))))
     (if (autowrap:wrapper-null-p window)
         (log:warn "Window ~s doesn't exist." window-id)
         window)))
