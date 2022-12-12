@@ -74,14 +74,15 @@ interface management system."
                ;; null backend
                "mcclim-null"))
 
-(defsystem "mcclim/extensions"
-  :depends-on ("mcclim-bitmaps"
-               "conditional-commands"
-               "mcclim-layouts/tab"
-               "mcclim-bezier"
-               "clim-pdf"
-               "clim-postscript"
-               "mcclim-franz"))
+(defsystem #:mcclim/extensions
+  :depends-on (#:mcclim-bitmaps
+               #:conditional-commands
+               #:mcclim-layouts/tab
+               #:mcclim-bezier
+               #:clim-pdf
+               #:clim-postscript
+               #:mcclim-emacs
+               #:mcclim-franz))
 
 (defmethod perform :after ((op load-op) (c (eql (find-system :mcclim))))
   (pushnew :clim *features*)) ; The fact that CLIM itself is available is true when all is loaded.
