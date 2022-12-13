@@ -1,8 +1,8 @@
 (in-package #:asdf-user)
 
 (defsystem "mcclim-emacs"
-  :depends-on ("clim-basic"
-               "mcclim-backend-common")
+  :depends-on (
+               "mcclim-svg")
   :serial t
   :components ((:file "emacs")))
 

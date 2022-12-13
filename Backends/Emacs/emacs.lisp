@@ -5,7 +5,7 @@
 ;;; via socket connection.
 
 (in-package #:common-lisp-user)
-(defpackage #:clim-emacs
+(defpackage #:mcclim-emacs
   (:use #:clim #:climi #:clime #:climb #:clim-lisp)
   (:import-from #:climi #:left #:right #:top #:bottom
                 #:filled #:ink
@@ -20,7 +20,7 @@
 
 
 
-(in-package #:clim-emacs)
+(in-package #:mcclim-emacs)
 (declaim (optimize (debug 3) (safety 3) (speed 1)))
 
 
@@ -152,7 +152,5 @@
 (defgeneric tooltip (presentation)
   (:documentation "Return a tooltip string describing PRESENTATION.")
   (:method ((p presentation))
-    (with-output-to-string (s)
-      (let ((*print-right-margin* 60))
-        (cl:describe (presentation-object p) s)))))
+    (princ-to-string (presentation-object p))))
 
