@@ -79,13 +79,15 @@
        (declare (dynamic-extent #',cont))
        (invoke-with-output-to-emacs-stream #',cont))))
 
+;; TODO Do this by using recording and replay as opposed to calling the continuation twice.
 (defun invoke-with-output-to-emacs-stream (continuation)
   (with-port (port :emacs)
     (let ((stream (make-instance 'clim-emacs-stream :port port)))
       (sheet-adopt-child (find-graft :port port) stream)
       (prog1 (funcall continuation stream)
-        (let ((svg-output (with-output-to-drawing-stream (svg-stream :svg nil)
-                            (funcall continuation svg-stream))))
+        (let ((svg-output
+                (with-output-to-drawing-stream (svg-stream :svg nil)
+                  (funcall continuation svg-stream))))
           (swank::send-to-emacs (list :write-clime
                                       (print svg-output)
                                       (presentations-for-emacs stream))))))))
