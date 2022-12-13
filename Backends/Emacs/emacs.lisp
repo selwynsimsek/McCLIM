@@ -305,9 +305,10 @@ four-element vector: width, height, ascent, descent")
     (let ((stream (make-instance 'clim-emacs-stream :port port)))
       (sheet-adopt-child (find-graft :port port) stream)
       (prog1 (funcall continuation stream)
-        (let ((output (stream-output-history stream)))
+        (let ((svg-output (with-output-to-drawing-stream (svg-stream :svg nil)
+                            (funcall continuation svg-stream))))
           (swank::send-to-emacs (list :write-clime
-                                      (output-record-to-svg output)
+                                      (print svg-output)
                                       (presentations-for-emacs stream))))))))
 
 ;; FIXME - for some reason CLIM acts as if we have an absurdly small right margin.
@@ -321,11 +322,21 @@ four-element vector: width, height, ascent, descent")
                    (emacs-right-margin)
                    100)) ; FIXME ?? perhaps we should do 80 x 43 chars
 
-(defun output-record-to-svg (record)
-  (multiple-value-bind (x-min y-min x-max y-max) (bounding-rectangle* record)
-    (let ((width  (ceiling (- x-max x-min)))
-          (height (ceiling (- y-max y-min))))
-      (shapes-to-svg (output-history-shapes record) width height))))
+(defvar *new* nil)
+
+(defun output-record-to-svg (record) ; this is the thing to make use the SVG backend (selwyn)
+  (print (if *new*
+             (progn
+               (with-output-to-drawing-stream (stream :svg nil)
+                                        ;(break)
+                 (progn
+                   (setf (stream-drawing-p stream) t)
+                   (replay record stream)
+                   (draw-circle* stream 200 200 4 :ink +red+))))
+             (multiple-value-bind (x-min y-min x-max y-max) (bounding-rectangle* record)
+               (let ((width  (ceiling (- x-max x-min)))
+                     (height (ceiling (- y-max y-min))))
+                 (shapes-to-svg (output-history-shapes record) width height))))))
 
 (defun presentations-for-emacs (stream)
   (let (ids)

@@ -746,6 +746,7 @@
 (defmethod invoke-with-output-to-drawing-stream
     (continuation (port svg-port) (destination stream) &rest args)
   (declare (ignore args))
+  ;(break)
   (let ((server-path (rest (port-server-path port))))
     (destructuring-bind (&key (scale-to-fit nil) (width :compute) (height :compute)
                          &allow-other-keys)
