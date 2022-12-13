@@ -55,102 +55,7 @@
 (defmethod medium-draw-lines* ((medium emacs-medium) coord-seq))
 (defmethod medium-draw-point* ((medium emacs-medium) x y))
 (defmethod medium-draw-points* ((medium emacs-medium) coord-seq))
-
-;;;; Text
 
-;; FIXME We don't provide an implementation of `text-style-mapping`,
-;;  and perhaps we don't want to - jqs 2020-05-08
-
-(defmethod climb:text-bounding-rectangle* ((medium emacs-medium) string
-                                           &key text-style start end align-x align-y direction)
-  (declare (ignore align-x align-y direction))
-  (let* ((sub (subseq string (or start 0) (or end (length string))))
-         (text-style (or text-style (medium-text-style medium))))
-    (multiple-value-bind (width height x y baseline)
-        (text-size medium sub :text-style text-style)
-      (declare (ignore x y))
-      (values 0 (- baseline) width (- height baseline)))))
-
-(defmethod text-size ((medium emacs-medium) string &key text-style (start 0) end)
-  (let* ((string (string string))
-         (text-style (or text-style (medium-text-style medium)))
-         (end (or end (length string)))
-         (line-height (text-style-height text-style medium))
-         (total-height 0)
-         (width 0)
-         (max-width 0))
-    (climi::dolines (line (subseq string start end)
-                          (values max-width total-height
-                                  width (- total-height line-height)
-                                  (- total-height (text-style-descent text-style medium))))
-      (setf width (if (zerop (length line))
-                      0
-                      (car (get-svg-string-size line text-style))))
-      (incf total-height line-height)
-      (alexandria:maxf max-width width))))
-
-;; FIXME - hacky, but perhaps we don't want to bother with real text metrics - jqs 2020-05-08
-
-(defparameter *text-style-metrics-cache*
-  (make-hash-table :test #'equal)
-  "A hash-table, the KEYs of which are lists (family face size), and the VALUES of which are
-four-element vector: width, height, ascent, descent")
-
-(defun tsmetric->index (metric)
-  (ecase metric
-    (:width 0)
-    (:height 1)
-    (:ascent 2)
-    (:descent 3)))
-
-(defun make-text-style-metrics-cache-entry ()
-  (make-array 4 :initial-element nil))
-
-(defun text-style-metrics-cache-key (text-style)
-  (list (text-style-family text-style)
-        (text-style-face text-style)
-        (text-style-size text-style)))
-
-(defun get-text-style-metric (text-style metric if-not-found)
-  (let ((key (text-style-metrics-cache-key text-style))
-        (index (tsmetric->index metric)))
-    (multiple-value-bind (entry foundp)
-        (gethash key *text-style-metrics-cache*)
-      (if foundp
-          (alexandria:if-let ((val (svref entry index)))
-            val
-            (setf (svref entry index) (funcall if-not-found)))
-          (let ((entry (make-text-style-metrics-cache-entry)))
-            (prog1 (setf (svref entry index) (funcall if-not-found))
-              (setf (gethash key *text-style-metrics-cache*) entry)))))))
-
-(defun text-style-base (text-style)
-  (svg-image-size (text-to-svg "M" text-style)))
-
-(defmethod text-style-width ((text-style standard-text-style) (medium emacs-medium))
-  (get-text-style-metric text-style
-                         :width
-                         #'(lambda () (car (text-style-base text-style)))))
-
-(defmethod text-style-ascent ((text-style standard-text-style) (medium emacs-medium))
-  (get-text-style-metric text-style
-                         :ascent
-                         #'(lambda () (cdr (svg-image-size (text-to-svg "A" text-style))))))
-
-(defmethod text-style-descent ((text-style standard-text-style) (medium emacs-medium))
-  (get-text-style-metric text-style
-                         :descent
-                         #'(lambda () (- (cdr (svg-image-size (text-to-svg "y" text-style)))
-                                         (cdr (svg-image-size (text-to-svg "v" text-style)))))))
-
-(defmethod text-style-height ((text-style standard-text-style) (medium emacs-medium))
-  (get-text-style-metric text-style
-                         :height
-                         #'(lambda () (+ (text-style-ascent text-style medium)
-                                         (text-style-descent text-style medium)))))
-
-(defmethod text-style-fixed-width-p ((text-style standard-text-style) (medium emacs-medium))
-  (eq :fix (text-style-family text-style)))
 
 ;;;; Stream
 
@@ -195,22 +100,6 @@ four-element vector: width, height, ascent, descent")
   (make-rectangle* 0 0
                    (emacs-right-margin)
                    100)) ; FIXME ?? perhaps we should do 80 x 43 chars
-
-(defvar *new* nil)
-
-(defun output-record-to-svg (record) ; this is the thing to make use the SVG backend (selwyn)
-  (print (if *new*
-             (progn
-               (with-output-to-drawing-stream (stream :svg nil)
-                                        ;(break)
-                 (progn
-                   (setf (stream-drawing-p stream) t)
-                   (replay record stream)
-                   (draw-circle* stream 200 200 4 :ink +red+))))
-             (multiple-value-bind (x-min y-min x-max y-max) (bounding-rectangle* record)
-               (let ((width  (ceiling (- x-max x-min)))
-                     (height (ceiling (- y-max y-min))))
-                 (shapes-to-svg (output-history-shapes record) width height))))))
 
 (defun presentations-for-emacs (stream)
   (let (ids)
@@ -265,30 +154,3 @@ four-element vector: width, height, ascent, descent")
       (let ((*print-right-margin* 60))
         (cl:describe (presentation-object p) s)))))
 
-
-;;;; Output records
-
-(defvar *debug-output-tree* nil
-  "Most recently processed output tree, for debugging purposes.")
-
-;;; Convert McCLIM's internal output record format into a simple list
-;;; representation with (0,0) as the upper-left corner.
-
-(defun output-history-shapes (root)
-  "Return the list of shapes in the output history rooted at ROOT."
-  (setf *debug-output-tree* root)
-  (let (shapes)
-    (multiple-value-bind (x-min y-min x-max y-max) (bounding-rectangle* root)
-      (assert (<= x-min x-max))
-      (assert (<= y-min y-max))
-      (map-over-output-record-tree (lambda (record)
-                                     (push (output-record-to-list record x-min y-min) shapes))
-                                   root)
-      (reverse (remove nil shapes)))))
-
-(defun map-over-output-record-tree (fn record)
-  "Call FN on RECORD and all descendents of RECORD."
-  (flet ((visit (child)
-           (map-over-output-record-tree fn child)))
-  (funcall fn record)
-  (map-over-output-records #'visit record)))
